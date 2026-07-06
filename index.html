@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>面接シート テキスト生成ツール</title>
+<style>
+  :root{
+    --ink:#2b2b2b;
+    --paper:#faf8f4;
+    --panel:#ffffff;
+    --line:#d8d2c6;
+    --accent:#3d6b5c;
+    --accent-soft:#e7efec;
+    --focus:#3d6b5c;
+    --note:#8a6d3b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+    font-size:19px;
+    line-height:1.6;
+    padding:24px;
+    padding-bottom:150px; /* room for sticky footer */
+  }
+  h1{
+    font-size:26px;
+    margin:0 0 6px 0;
+    letter-spacing:.02em;
+  }
+  .subtitle{
+    color:#666;
+    font-size:16px;
+    margin-bottom:24px;
+  }
+  #itemsContainer{
+    max-width:860px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+  .section{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .section-title{
+    font-size:21px;
+    margin:0;
+    padding-bottom:6px;
+    border-bottom:2px solid var(--accent);
+    color:var(--accent);
+  }
+  .section-note{
+    font-size:15px;
+    color:var(--note);
+    margin-top:-6px;
+  }
+  .item{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  .item-label{
+    font-weight:700;
+    font-size:19px;
+    margin-bottom:10px;
+    color:var(--ink);
+  }
+  .options-group{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 22px;
+  }
+  .option-label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:18px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .option-label input[type="checkbox"],
+  .option-label input[type="radio"]{
+    width:20px;
+    height:20px;
+    accent-color:var(--accent);
+    cursor:pointer;
+  }
+  select.sel-input,
+  input.txt-input,
+  textarea.txt-area{
+    width:100%;
+    max-width:480px;
+    font-size:18px;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:#fff;
+    color:var(--ink);
+    font-family:inherit;
+  }
+  textarea.txt-area{
+    max-width:100%;
+    resize:vertical;
+  }
+  .unit-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  .unit-row .txt-input{ max-width:220px; }
+  .unit-row .unit-select{ max-width:120px; }
+
+  select.sel-input:focus,
+  input.txt-input:focus,
+  textarea.txt-area:focus,
+  .option-label input:focus-visible{
+    outline:2px solid var(--focus);
+    outline-offset:2px;
+  }
+
+  .reference-card{
+    background:#fbf1ea;
+    border:1px solid #e3c8b3;
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  .reference-title{
+    font-weight:700;
+    font-size:17px;
+    color:#8a4a2b;
+    margin-bottom:8px;
+  }
+  .reference-list{
+    margin:0;
+    padding-left:22px;
+    font-size:17px;
+    color:#5a3d28;
+  }
+  .reference-list li{ margin-bottom:2px; }
+
+  /* ===== 出力エリア(下部固定) ===== */
+  .output-bar{
+    position:fixed;
+    left:0;right:0;bottom:0;
+    background:var(--panel);
+    border-top:2px solid var(--line);
+    padding:14px 24px 18px;
+    box-shadow:0 -4px 14px rgba(0,0,0,0.08);
+  }
+  .output-bar-inner{
+    max-width:860px;
+    margin:0 auto;
+  }
+  .output-label{
+    font-weight:700;
+    font-size:17px;
+    margin-bottom:6px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  #outputText{
+    width:100%;
+    font-size:17px;
+    font-family:inherit;
+    line-height:1.55;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    resize:vertical;
+    color:var(--ink);
+    background:#fffdf9;
+  }
+  .btn-row{
+    display:flex;
+    gap:10px;
+    margin-top:10px;
+    align-items:center;
+  }
+  #copyBtn{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    padding:11px 26px;
+    font-size:17px;
+    font-weight:700;
+    cursor:pointer;
+    letter-spacing:.03em;
+  }
+  #copyBtn:hover{ filter:brightness(1.08); }
+  #copyBtn:active{ filter:brightness(0.95); }
+  #copyStatus{
+    font-size:15px;
+    color:var(--accent);
+    opacity:0;
+    transition:opacity .2s;
+  }
+  #copyStatus.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<h1>面接シート テキスト生成ツール</h1>
+<div class="subtitle">項目を入力・選択すると、下部のテキストエリアに自動で反映されます。「まとめてコピー」でコピーできます。</div>
+
+<div id="itemsContainer">
+  <section class="section" data-section-title="1. 面接準備">
+    <h2 class="section-title">1. 面接準備</h2>
+    
+    <div class="item" data-active="false" data-type="checkbox" data-label="録音は開始しましたか？">
+      <div class="item-label">録音は開始しましたか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="はい">はい</label>
+      </div>
+    </div>
+    <div class="item" data-active="false" data-type="checkbox" data-label="アイスブレイクは済みましたか？">
+      <div class="item-label">アイスブレイク（緊張をほぐす）は済みましたか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="はい">はい</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="面接担当者">
+      <div class="item-label">面接担当者</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+  </section>
+
+  <section class="section" data-section-title="2. 事前会話">
+    <h2 class="section-title">2. 事前会話</h2>
+    
+    <div class="item" data-active="true" data-type="radio" data-label="今日は迷わず来れましたか？">
+      <div class="item-label">今日は迷わず来れましたか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_今日は迷わず来れましたか？" value="はい">はい</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_今日は迷わず来れましたか？" value="いいえ">いいえ</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="radio" data-label="緊張していますか？">
+      <div class="item-label">緊張していますか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_緊張していますか？" value="はい">はい</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_緊張していますか？" value="いいえ">いいえ</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="radio" data-label="お仕事帰りですか？">
+      <div class="item-label">お仕事帰りですか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_お仕事帰りですか？" value="はい">はい</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_お仕事帰りですか？" value="いいえ">いいえ</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="メモ">
+      <div class="item-label">特記事項メモ</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+  </section>
+
+  <section class="section" data-section-title="3. プロフィール確認">
+    <h2 class="section-title">3. プロフィール確認</h2>
+    <div class="section-note">※履歴書に記入済みであれば入力不要です。</div>
+    <div class="item" data-active="true" data-type="text" data-label="名前">
+      <div class="item-label">名前</div>
+      <input type="text" class="txt-input" placeholder="氏名を入力">
+    </div>
+    <div class="item" data-active="true" data-type="select" data-label="年齢">
+      <div class="item-label">年齢</div>
+      <select class="sel-input">
+      <option value="18">18</option>
+      <option value="19">19</option>
+      <option value="20">20</option>
+      <option value="21">21</option>
+      <option value="22">22</option>
+      <option value="23">23</option>
+      <option value="24">24</option>
+      <option value="25">25</option>
+      <option value="26">26</option>
+      <option value="27">27</option>
+      <option value="28">28</option>
+      <option value="29">29</option>
+      <option value="30" selected>30</option>
+      <option value="31">31</option>
+      <option value="32">32</option>
+      <option value="33">33</option>
+      <option value="34">34</option>
+      <option value="35">35</option>
+      <option value="36">36</option>
+      <option value="37">37</option>
+      <option value="38">38</option>
+      <option value="39">39</option>
+      <option value="40">40</option>
+      <option value="41">41</option>
+      <option value="42">42</option>
+      <option value="43">43</option>
+      <option value="44">44</option>
+      <option value="45">45</option>
+      <option value="46">46</option>
+      <option value="47">47</option>
+      <option value="48">48</option>
+      <option value="49">49</option>
+      <option value="50">50</option>
+      </select>
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="住所">
+      <div class="item-label">住所</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="仕事">
+      <div class="item-label">仕事</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+  </section>
+
+  <section class="section" data-section-title="4-1. 身長確認">
+    <h2 class="section-title">4-1. 身長確認</h2>
+    <div class="section-note">※「事務的な質問になりますが」と前置きしてから聞く</div>
+    <div class="item" data-active="true" data-type="select" data-label="身長">
+      <div class="item-label">身長</div>
+      <select class="sel-input">
+      <option value="140">140</option>
+      <option value="141">141</option>
+      <option value="142">142</option>
+      <option value="143">143</option>
+      <option value="144">144</option>
+      <option value="145">145</option>
+      <option value="146">146</option>
+      <option value="147">147</option>
+      <option value="148">148</option>
+      <option value="149">149</option>
+      <option value="150">150</option>
+      <option value="151">151</option>
+      <option value="152">152</option>
+      <option value="153">153</option>
+      <option value="154">154</option>
+      <option value="155">155</option>
+      <option value="156">156</option>
+      <option value="157">157</option>
+      <option value="158">158</option>
+      <option value="159">159</option>
+      <option value="160" selected>160</option>
+      <option value="161">161</option>
+      <option value="162">162</option>
+      <option value="163">163</option>
+      <option value="164">164</option>
+      <option value="165">165</option>
+      <option value="166">166</option>
+      <option value="167">167</option>
+      <option value="168">168</option>
+      <option value="169">169</option>
+      <option value="170">170</option>
+      <option value="171">171</option>
+      <option value="172">172</option>
+      <option value="173">173</option>
+      <option value="174">174</option>
+      <option value="175">175</option>
+      <option value="176">176</option>
+      <option value="177">177</option>
+      <option value="178">178</option>
+      <option value="179">179</option>
+      <option value="180">180</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="section" data-section-title="4-2. スリーサイズ">
+    <h2 class="section-title">4-2. スリーサイズ</h2>
+    
+    <div class="item" data-active="true" data-type="select" data-label="バスト">
+      <div class="item-label">バスト</div>
+      <select class="sel-input">
+      <option value="72">72</option>
+      <option value="73">73</option>
+      <option value="74">74</option>
+      <option value="75">75</option>
+      <option value="76">76</option>
+      <option value="77">77</option>
+      <option value="78">78</option>
+      <option value="79">79</option>
+      <option value="80">80</option>
+      <option value="81">81</option>
+      <option value="82">82</option>
+      <option value="83">83</option>
+      <option value="84">84</option>
+      <option value="85">85</option>
+      <option value="86" selected>86</option>
+      <option value="87">87</option>
+      <option value="88">88</option>
+      <option value="89">89</option>
+      <option value="90">90</option>
+      <option value="91">91</option>
+      <option value="92">92</option>
+      <option value="93">93</option>
+      <option value="94">94</option>
+      <option value="95">95</option>
+      <option value="96">96</option>
+      <option value="97">97</option>
+      <option value="98">98</option>
+      <option value="99">99</option>
+      <option value="100">100</option>
+      <option value="101">101</option>
+      <option value="102">102</option>
+      <option value="103">103</option>
+      <option value="104">104</option>
+      <option value="105">105</option>
+      <option value="106">106</option>
+      <option value="107">107</option>
+      <option value="108">108</option>
+      <option value="109">109</option>
+      <option value="110">110</option>
+      </select>
+    </div>
+    <div class="item" data-active="true" data-type="select" data-label="カップ数">
+      <div class="item-label">カップ数</div>
+      <select class="sel-input">
+      <option value="A">A</option>
+      <option value="B">B</option>
+      <option value="C" selected>C</option>
+      <option value="D">D</option>
+      <option value="E">E</option>
+      <option value="F">F</option>
+      <option value="G">G</option>
+      <option value="H">H</option>
+      <option value="I">I</option>
+      <option value="J">J</option>
+      <option value="K">K</option>
+      <option value="L">L</option>
+      </select>
+    </div>
+    <div class="item" data-active="true" data-type="select" data-label="ウエスト">
+      <div class="item-label">ウエスト</div>
+      <select class="sel-input">
+      <option value="48">48</option>
+      <option value="49">49</option>
+      <option value="50">50</option>
+      <option value="51">51</option>
+      <option value="52">52</option>
+      <option value="53">53</option>
+      <option value="54">54</option>
+      <option value="55">55</option>
+      <option value="56">56</option>
+      <option value="57">57</option>
+      <option value="58">58</option>
+      <option value="59">59</option>
+      <option value="60" selected>60</option>
+      <option value="61">61</option>
+      <option value="62">62</option>
+      <option value="63">63</option>
+      <option value="64">64</option>
+      <option value="65">65</option>
+      <option value="66">66</option>
+      <option value="67">67</option>
+      <option value="68">68</option>
+      <option value="69">69</option>
+      <option value="70">70</option>
+      <option value="71">71</option>
+      <option value="72">72</option>
+      <option value="73">73</option>
+      <option value="74">74</option>
+      <option value="75">75</option>
+      <option value="76">76</option>
+      <option value="77">77</option>
+      <option value="78">78</option>
+      <option value="79">79</option>
+      <option value="80">80</option>
+      <option value="81">81</option>
+      <option value="82">82</option>
+      <option value="83">83</option>
+      <option value="84">84</option>
+      <option value="85">85</option>
+      <option value="86">86</option>
+      <option value="87">87</option>
+      <option value="88">88</option>
+      <option value="89">89</option>
+      <option value="90">90</option>
+      </select>
+    </div>
+    <div class="item" data-active="true" data-type="select" data-label="ヒップ">
+      <div class="item-label">ヒップ</div>
+      <select class="sel-input">
+      <option value="72">72</option>
+      <option value="73">73</option>
+      <option value="74">74</option>
+      <option value="75">75</option>
+      <option value="76">76</option>
+      <option value="77">77</option>
+      <option value="78">78</option>
+      <option value="79">79</option>
+      <option value="80">80</option>
+      <option value="81">81</option>
+      <option value="82">82</option>
+      <option value="83">83</option>
+      <option value="84">84</option>
+      <option value="85">85</option>
+      <option value="86" selected>86</option>
+      <option value="87">87</option>
+      <option value="88">88</option>
+      <option value="89">89</option>
+      <option value="90">90</option>
+      <option value="91">91</option>
+      <option value="92">92</option>
+      <option value="93">93</option>
+      <option value="94">94</option>
+      <option value="95">95</option>
+      <option value="96">96</option>
+      <option value="97">97</option>
+      <option value="98">98</option>
+      <option value="99">99</option>
+      <option value="100">100</option>
+      <option value="101">101</option>
+      <option value="102">102</option>
+      <option value="103">103</option>
+      <option value="104">104</option>
+      <option value="105">105</option>
+      <option value="106">106</option>
+      <option value="107">107</option>
+      <option value="108">108</option>
+      <option value="109">109</option>
+      <option value="110">110</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="section" data-section-title="5. 健康・その他確認">
+    <h2 class="section-title">5. 健康・その他確認</h2>
+    
+    <div class="item" data-active="true" data-type="radio" data-label="血液型">
+      <div class="item-label">血液型</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_血液型" value="A">A</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_血液型" value="B">B</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_血液型" value="O">O</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_血液型" value="AB">AB</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="select" data-label="ピルの服用">
+      <div class="item-label">ピルの服用</div>
+      <select class="sel-input">
+      <option value="">-- 選択してください --</option>
+      <option value="服用中">服用中</option>
+      <option value="服用なし">服用なし</option>
+      </select>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="通院中の病院">
+      <div class="item-label">通院中の病院</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="内科">内科</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="精神科">精神科</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="整形外科">整形外科</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="その他">その他</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="傷跡">
+      <div class="item-label">傷跡</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="あり">あり</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="妊娠線">
+      <div class="item-label">妊娠線</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="あり">あり</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="タトゥー">
+      <div class="item-label">タトゥー</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="あり">あり</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" data-section-title="6. 追加質問">
+    <h2 class="section-title">6. 追加質問</h2>
+    
+    <div class="item" data-active="true" data-type="text" data-label="休日は何をしていますか？">
+      <div class="item-label">休日は何をしていますか？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="趣味はありますか？">
+      <div class="item-label">趣味はありますか？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+  </section>
+
+  <section class="section" data-section-title="7. 応募理由">
+    <h2 class="section-title">7. 応募理由</h2>
+    
+    <div class="item" data-active="true" data-type="text" data-label="なぜ当店を選んでいただいたのですか？">
+      <div class="item-label">なぜ当店を選んでいただいたのですか？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="他店ではなく当店に興味を持った理由は？">
+      <div class="item-label">他店ではなく当店に興味を持った理由は？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="お店選びで重視していることは？">
+      <div class="item-label">お店選びで重視していることは？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+  </section>
+
+  <section class="section" data-section-title="8. 収入目標確認">
+    <h2 class="section-title">8. 収入目標確認</h2>
+    
+    <div class="item" data-active="true" data-type="text" data-label="月どれくらい稼ぎたいですか？（万円）">
+      <div class="item-label">月どれくらい稼ぎたいですか？（万円）</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="なにか目標はありますか？">
+      <div class="item-label">なにか目標はありますか？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="その金額は何に使いたいですか？">
+      <div class="item-label">その金額は何に使いたいですか？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+  </section>
+
+  <section class="section" data-section-title="9. 勤務確認">
+    <h2 class="section-title">9. 勤務確認</h2>
+    
+    <div class="item" data-active="true" data-type="select" data-label="週の出勤日数">
+      <div class="item-label">週の出勤日数</div>
+      <select class="sel-input">
+      <option value="1日">1日</option>
+      <option value="2日">2日</option>
+      <option value="3日" selected>3日</option>
+      <option value="4日">4日</option>
+      <option value="5日">5日</option>
+      <option value="6日">6日</option>
+      <option value="7日">7日</option>
+      </select>
+    </div>
+    <div class="item" data-active="true" data-type="select" data-label="1日の出勤時間">
+      <div class="item-label">1日の出勤時間</div>
+      <select class="sel-input">
+      <option value="3時間">3時間</option>
+      <option value="4時間">4時間</option>
+      <option value="5時間">5時間</option>
+      <option value="6時間">6時間</option>
+      <option value="7時間">7時間</option>
+      <option value="8時間" selected>8時間</option>
+      <option value="9時間">9時間</option>
+      <option value="10時間">10時間</option>
+      <option value="11時間">11時間</option>
+      <option value="12時間">12時間</option>
+      <option value="13時間">13時間</option>
+      <option value="14時間">14時間</option>
+      <option value="15時間">15時間</option>
+      </select>
+    </div>
+    <div class="item" data-active="true" data-type="radio" data-label="固定曜日で出勤できますか？">
+      <div class="item-label">固定曜日で出勤できますか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_固定曜日で出勤できますか？" value="はい">はい</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_固定曜日で出勤できますか？" value="いいえ">いいえ</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="固定曜日（可能な場合）">
+      <div class="item-label">固定曜日（可能な場合）</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="月">月</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="火">火</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="水">水</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="木">木</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="金">金</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="土">土</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="日">日</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="radio" data-label="昼職との両立ですか？">
+      <div class="item-label">昼職との両立ですか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_昼職との両立ですか？" value="はい">はい</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_昼職との両立ですか？" value="いいえ">いいえ</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="radio" data-label="終電はありますか？">
+      <div class="item-label">終電はありますか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_終電はありますか？" value="はい">はい</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_終電はありますか？" value="いいえ">いいえ</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" data-section-title="10. 追加質問（勤務関連）">
+    <h2 class="section-title">10. 追加質問（勤務関連）</h2>
+    
+    <div class="item" data-active="true" data-type="radio" data-label="急なお休みは多いほうですか？">
+      <div class="item-label">急なお休みは多いほうですか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_急なお休みは多いほうですか？" value="はい">はい</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_急なお休みは多いほうですか？" value="いいえ">いいえ</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="遅刻した経験はありますか？">
+      <div class="item-label">遅刻した経験はありますか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="多い">多い</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="ある">ある</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="少しある">少しある</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="ない">ない</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="radio" data-label="朝は強いほうですか？">
+      <div class="item-label">朝は強いほうですか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_朝は強いほうですか？" value="はい">はい</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_朝は強いほうですか？" value="いいえ">いいえ</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" data-section-title="11. 接客経験（未経験者向け）">
+    <h2 class="section-title">11. 接客経験（未経験者向け）</h2>
+    
+    <div class="item" data-active="true" data-type="checkbox" data-label="接客業経験はありますか？">
+      <div class="item-label">接客業経験はありますか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="はい">はい</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="業種（経験がある場合）">
+      <div class="item-label">業種（経験がある場合）</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="人と話すのは好きですか？">
+      <div class="item-label">人と話すのは好きですか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="はい">はい</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="まあまあ">まあまあ</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="ちょっと苦手">ちょっと苦手</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="いいえ">いいえ</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="お客さま対応は得意ですか？">
+      <div class="item-label">お客さま対応は得意ですか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="はい">はい</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="まあまあ">まあまあ</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="ちょっと苦手">ちょっと苦手</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="いいえ">いいえ</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" data-section-title="12. 接客経験（経験者向け）">
+    <h2 class="section-title">12. 接客経験（経験者向け）</h2>
+    
+    <div class="item" data-active="true" data-type="text" data-label="どれくらい経験はありますか？">
+      <div class="item-label">どれくらい経験はありますか？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="月収はいくらくらいでしたか？">
+      <div class="item-label">月収はいくらくらいでしたか？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text_unit" data-label="本指名はどれくらいでしたか？">
+      <div class="item-label">本指名はどれくらいでしたか？</div>
+      <div class="unit-row">
+        <input type="text" class="txt-input" placeholder="数値を入力">
+        <select class="sel-input unit-select">
+      <option value="本">本</option>
+      <option value="人">人</option>
+        </select>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="得意な接客はありますか？">
+      <div class="item-label">得意な接客はありますか？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+    <div class="item" data-active="true" data-type="text" data-label="前店を辞めた理由は？">
+      <div class="item-label">前店を辞めた理由は？</div>
+      <input type="text" class="txt-input" placeholder="自由に入力">
+    </div>
+  </section>
+
+  <section class="section" data-section-title="13. ルール確認">
+    <h2 class="section-title">13. ルール確認</h2>
+    
+    <div class="item" data-active="false" data-type="checkbox" data-label="別紙にて確認をおこないましたか？">
+      <div class="item-label">別紙にて確認をおこないましたか？</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="はい">はい</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" data-section-title="14. 必ず聞くこと">
+    <h2 class="section-title">14. 必ず聞くこと</h2>
+    
+    <div class="item" data-active="true" data-type="textarea" data-label="なにか不安なことや質問はありますか？">
+      <div class="item-label">なにか不安なことや質問はありますか？</div>
+      <textarea class="txt-area" rows="3" placeholder="自由に入力"></textarea>
+    </div>
+  </section>
+
+  <section class="section" data-section-title="15. パーソナリティメモ">
+    <h2 class="section-title">15. パーソナリティメモ</h2>
+    
+    <div class="item" data-active="true" data-type="checkbox" data-label="顔">
+      <div class="item-label">顔</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="究極の美人">究極の美人</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="美人">美人</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="綺麗">綺麗</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="綺麗め">綺麗め</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="和風">和風</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="欧州ハーフ風">欧州ハーフ風</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="アジア系ハーフ風">アジア系ハーフ風</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="可愛い">可愛い</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="可愛らしい">可愛らしい</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="お嬢様">お嬢様</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="萌え">萌え</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="素朴">素朴</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="整った">整った</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="柔らかな">柔らかな</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="クール">クール</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="凛とした">凛とした</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="印象的">印象的</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="大人っぽい">大人っぽい</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="飲み屋の女性風">飲み屋の女性風</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="華やか">華やか</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="清楚">清楚</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="エレガント">エレガント</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="好きな人は好き">好きな人は好き</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="スタイル">
+      <div class="item-label">スタイル</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="高身長">高身長</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="小柄">小柄</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="スレンダー">スレンダー</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="標準">標準</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="メリハリ">メリハリ</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="グラマー">グラマー</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="モデル並">モデル並</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="肉感">肉感</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="健康的">健康的</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="丸み">丸み</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="美乳">美乳</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="美尻">美尻</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="美脚">美脚</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="程よいむっちり感">程よいむっちり感</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="巨乳">巨乳</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="性格">
+      <div class="item-label">性格</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="明るい">明るい</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="朗らか">朗らか</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="社交的">社交的</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="無邪気">無邪気</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="天真爛漫">天真爛漫</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="チャーミング">チャーミング</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="陽気">陽気</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="積極的">積極的</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="すっと懐に入る">すっと懐に入る</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="柔軟な対話">柔軟な対話</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="活発">活発</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="笑顔">笑顔</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="自然体">自然体</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="人懐っこい">人懐っこい</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="思いやり">思いやり</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="包容力">包容力</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="穏やか">穏やか</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="柔らか">柔らか</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="親しみやすい">親しみやすい</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="気遣い">気遣い</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="知的">知的</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="物静か">物静か</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="ミステリアス">ミステリアス</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="控えめ">控えめ</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="上品">上品</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="品格のある振る舞い">品格のある振る舞い</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="物腰が柔らかい">物腰が柔らかい</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="不思議なオーラ">不思議なオーラ</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="自立">自立</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="しっかり">しっかり</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="個性的">個性的</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="ユーモア">ユーモア</label>
+      </div>
+    </div>
+    <div class="item" data-active="true" data-type="checkbox" data-label="その他">
+      <div class="item-label">その他</div>
+      <div class="options-group">
+      <label class="option-label"><input type="checkbox" class="chk" value="未経験">未経験</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="幅広いプレイ">幅広いプレイ</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="エッチ">エッチ</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="感度良い">感度良い</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="S気質">S気質</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="M気質">M気質</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="積極的">積極的</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="むっつり">むっつり</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="未知数">未知数</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="リピート多い">リピート多い</label>
+      <label class="option-label"><input type="checkbox" class="chk" value="高評価の口コミ">高評価の口コミ</label>
+      </div>
+    </div>
+  </section>
+
+  <div class="reference-card">
+    <div class="reference-title">参考：以下は原則不採用の基準です（この項目はテキスト生成には含まれません）</div>
+    <ul class="reference-list">
+      <li>態度が悪い</li><li>虚偽申告</li><li>当欠常習</li><li>清潔感不足</li><li>ルール軽視</li><li>極端な出勤不安定</li>
+    </ul>
+  </div>
+
+  <section class="section" data-section-title="16. 面接終了後">
+    <h2 class="section-title">16. 面接終了後</h2>
+    
+    <div class="item" data-active="true" data-type="radio" data-label="合否判断">
+      <div class="item-label">合否判断</div>
+      <div class="options-group">
+      <label class="option-label"><input type="radio" class="rad" name="r_合否判断" value="採用を薦める">採用を薦める</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_合否判断" value="判断を仰ぐ">判断を仰ぐ</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_合否判断" value="保留">保留</label>
+      <label class="option-label"><input type="radio" class="rad" name="r_合否判断" value="不採用を薦める">不採用を薦める</label>
+      </div>
+    </div>
+    
+    <div class="item" data-active="true" data-type="textarea" data-label="コメント">
+      <div class="item-label">コメント</div>
+      <textarea class="txt-area" rows="3" placeholder="自由に入力"></textarea>
+    </div>
+  </section>
+
+  <div class="reference-card">
+    <div class="reference-title">お疲れ様でした。以下の作業を速やかに完了してください。</div>
+    <ul class="reference-list">
+      <li>業務システムへの入力</li><li>録音データの文字起こし</li><li>写真の登録</li><li>全体への報告</li>
+    </ul>
+  </div>
+
+  <div>&nbsp;</div>
+  <div>&nbsp;</div>
+  <div>&nbsp;</div>
+  <div>&nbsp;</div>
+  <div>&nbsp;</div>
+
+</div>
+
+<!-- ===== 下部固定：生成結果 ===== -->
+<div class="output-bar">
+  <div class="output-bar-inner">
+    <div class="output-label">
+      <span>生成されたテキスト</span>
+      <span id="copyStatus">コピーしました</span>
+    </div>
+    <textarea id="outputText" rows="8" readonly></textarea>
+    <div class="btn-row">
+      <button id="copyBtn" type="button">まとめてコピー</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const container = document.getElementById('itemsContainer');
+  const output = document.getElementById('outputText');
+  const copyBtn = document.getElementById('copyBtn');
+  const copyStatus = document.getElementById('copyStatus');
+
+  function getItemValue(item){
+    const type = item.getAttribute('data-type');
+    if(type === 'checkbox'){
+      const checked = Array.from(item.querySelectorAll('.chk:checked')).map(c => c.value);
+      return checked.join('、');
+    }
+    if(type === 'radio'){
+      const checked = item.querySelector('.rad:checked');
+      return checked ? checked.value : '';
+    }
+    if(type === 'select'){
+      const sel = item.querySelector('.sel-input');
+      return sel ? sel.value : '';
+    }
+    if(type === 'text'){
+      const txt = item.querySelector('.txt-input');
+      return txt ? txt.value.trim() : '';
+    }
+    if(type === 'textarea'){
+      const ta = item.querySelector('.txt-area');
+      return ta ? ta.value.trim() : '';
+    }
+    if(type === 'text_unit'){
+      const txt = item.querySelector('.txt-input');
+      const sel = item.querySelector('.unit-select');
+      const v = txt ? txt.value.trim() : '';
+      const u = sel ? sel.value : '';
+      if(!v) return '';
+      return v + (u ? (' ' + u) : '');
+    }
+    return '';
+  }
+
+  function generateText(){
+    const outLines = [];
+    const sections = container.querySelectorAll('.section');
+
+    sections.forEach(sectionEl => {
+      const title = sectionEl.getAttribute('data-section-title') || '';
+      const items = sectionEl.querySelectorAll('.item');
+      const sectionLines = [];
+
+      items.forEach(item => {
+        const active = item.getAttribute('data-active') === 'true';
+        if(!active) return;
+        const label = item.getAttribute('data-label') || '';
+        const value = getItemValue(item);
+        if(value){
+          sectionLines.push(label + '：' + value);
+        }
+      });
+
+      if(sectionLines.length > 0){
+        outLines.push('【' + title + '】' + sectionLines.join('／'));
+        outLines.push('');
+      }
+    });
+
+    output.value = outLines.join('\n').trim();
+  }
+
+  container.addEventListener('change', generateText);
+  container.addEventListener('input', generateText);
+
+  copyBtn.addEventListener('click', function(){
+    if(!output.value){
+      generateText();
+    }
+    output.select();
+    output.setSelectionRange(0, output.value.length);
+
+    function showCopied(){
+      copyStatus.classList.add('show');
+      setTimeout(() => copyStatus.classList.remove('show'), 1600);
+    }
+
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(output.value).then(showCopied).catch(function(){
+        document.execCommand('copy');
+        showCopied();
+      });
+    } else {
+      document.execCommand('copy');
+      showCopied();
+    }
+  });
+
+  generateText();
+})();
+</script>
+
+</body>
+</html>
